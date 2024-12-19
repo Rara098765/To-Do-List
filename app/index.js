@@ -1,5 +1,17 @@
 import React, { useState } from "react";
-import { StyleSheet, Text, View, TextInput, FlatList, TouchableOpacity, Modal, Button, Alert, Image } from "react-native";
+import {
+  StyleSheet,
+  Text,
+  View,
+  TextInput,
+  FlatList,
+  TouchableOpacity,
+  Modal,
+  Alert,
+  Image,
+  Platform,
+} from "react-native";
+import Slider from "@react-native-community/slider";
 
 export default function App() {
   const [task, setTask] = useState("");
@@ -10,32 +22,26 @@ export default function App() {
   const [editingTask, setEditingTask] = useState(null);
   const [newTaskValue, setNewTaskValue] = useState("");
   const [newImageUrl, setNewImageUrl] = useState("");
+  const [completion, setCompletion] = useState(0);
 
   const addTask = () => {
     if (task.trim()) {
       const newTask = {
         id: Date.now().toString(),
         value: task,
-        completed: false,
         image: imageUrl,
         status: "inProgress",
+        completion: completion, // сохранение процента при добавлении
       };
       setTasks([...tasks, newTask]);
       setTask("");
       setImageUrl("");
+      setCompletion(0); // сброс процента
     }
   };
 
   const deleteTask = (taskId) => {
     setTasks(tasks.filter((item) => item.id !== taskId));
-  };
-
-  const toggleTaskStatus = (taskId) => {
-    setTasks(
-      tasks.map((item) =>
-        item.id === taskId ? { ...item, completed: !item.completed } : item
-      )
-    );
   };
 
   const changeTaskStatus = (taskId, newStatus) => {
@@ -51,6 +57,7 @@ export default function App() {
     setEditingTask(taskToEdit);
     setNewTaskValue(taskToEdit.value);
     setNewImageUrl(taskToEdit.image);
+    setCompletion(taskToEdit.completion); // заполняем текущий процент выполнения
     setEditModalVisible(true);
   };
 
@@ -59,6 +66,7 @@ export default function App() {
     setEditingTask(null);
     setNewTaskValue("");
     setNewImageUrl("");
+    setCompletion(0);
   };
 
   const updateTask = () => {
@@ -66,7 +74,12 @@ export default function App() {
       setTasks(
         tasks.map((item) =>
           item.id === editingTask.id
-            ? { ...item, value: newTaskValue, image: newImageUrl }
+            ? {
+                ...item,
+                value: newTaskValue,
+                image: newImageUrl,
+                completion: completion, // обновление процента
+              }
             : item
         )
       );
@@ -100,6 +113,15 @@ export default function App() {
           value={imageUrl}
           onChangeText={(url) => setImageUrl(url)}
         />
+        <Text style={styles.sliderLabel}>Выполнено: {completion}%</Text>
+        <Slider
+          style={styles.slider}
+          minimumValue={0}
+          maximumValue={100}
+          step={1}
+          value={completion}
+          onValueChange={setCompletion}
+        />
         <TouchableOpacity style={styles.addButton} onPress={addTask}>
           <Text style={styles.addButtonText}>Добавить</Text>
         </TouchableOpacity>
@@ -128,54 +150,32 @@ export default function App() {
       </View>
 
       {/* Список задач */}
-      <View style={styles.taskSection}>
-        <Text style={styles.sectionTitle}>Задачи</Text>
-        <FlatList
-          data={filteredTasks}
-          renderItem={({ item }) => (
-            <View style={styles.taskItem}>
-              <TouchableOpacity onPress={() => toggleTaskStatus(item.id)}>
-                <Text
-                  style={[
-                    styles.taskText,
-                    item.completed && styles.taskCompleted,
-                    item.status === "completed" && styles.statusCompleted,
-                    item.status === "inProgress" && styles.statusInProgress,
-                    item.status === "cancelled" && styles.statusCancelled,
-                  ]}
-                >
-                  {item.value}
-                </Text>
+      <FlatList
+        data={filteredTasks}
+        renderItem={({ item }) => (
+          <View style={styles.taskItem}>
+            <Text style={[styles.taskText, item.status === "completed" && styles.taskCompleted]}>
+              {item.value} ({item.completion}%)
+            </Text>
+            {item.image && <Image source={{ uri: item.image }} style={styles.taskImage} />}
+            <View style={styles.taskActions}>
+              <TouchableOpacity onPress={() => changeTaskStatus(item.id, "completed")}>
+                <Text style={styles.statusButton}>Выполнено</Text>
               </TouchableOpacity>
-
-              {item.image ? (
-                <Image source={{ uri: item.image }} style={styles.taskImage} />
-              ) : null}
-
-              <View style={styles.taskActions}>
-                <TouchableOpacity
-                  onPress={() => changeTaskStatus(item.id, "completed")}
-                >
-                  <Text style={styles.statusButton}>Выполнено</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={() => changeTaskStatus(item.id, "cancelled")}
-                >
-                  <Text style={styles.statusButton}>Отменено</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => openEditModal(item.id)}>
-                  <Text style={styles.editButton}>Редактировать</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => deleteTask(item.id)}>
-                  <Text style={styles.deleteButton}>Удалить</Text>
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity onPress={() => changeTaskStatus(item.id, "inProgress")}>
+                <Text style={styles.statusButton}>В процессе</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => openEditModal(item.id)}>
+                <Text style={styles.editButton}>Редактировать</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => deleteTask(item.id)}>
+                <Text style={styles.deleteButton}>Удалить</Text>
+              </TouchableOpacity>
             </View>
-          )}
-          keyExtractor={(item) => item.id}
-        />
-      </View>
+          </View>
+        )}
+        keyExtractor={(item) => item.id}
+      />
 
       {/* Модальное окно редактирования */}
       <Modal visible={editModalVisible} animationType="slide">
@@ -193,9 +193,22 @@ export default function App() {
             onChangeText={setNewImageUrl}
             placeholder="Введите новый URL изображения"
           />
+          <Text style={styles.sliderLabel}>Выполнено: {completion}%</Text>
+          <Slider
+            style={styles.slider}
+            minimumValue={0}
+            maximumValue={100}
+            step={1}
+            value={completion}
+            onValueChange={setCompletion}
+          />
           <View style={styles.modalButtons}>
-            <Button title="Отмена" onPress={closeEditModal} />
-            <Button title="Сохранить" onPress={updateTask} />
+            <TouchableOpacity style={styles.modalButton} onPress={closeEditModal}>
+              <Text style={styles.modalButtonText}>Отмена</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.modalButton} onPress={updateTask}>
+              <Text style={styles.modalButtonText}>Сохранить</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -206,103 +219,88 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f9f9f9",
+    backgroundColor: "#f2f2f2",
     padding: 15,
+    justifyContent: "flex-start",
   },
   title: {
-    fontSize: 28,
+    fontSize: 22,
     fontWeight: "bold",
-    color: "#4caf50",
     textAlign: "center",
+    color: "#4CAF50",
     marginBottom: 20,
   },
   inputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
     marginBottom: 20,
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    padding: 12,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 5,
   },
   input: {
-    flex: 1,
-    height: 40,
+    backgroundColor: "#FFF",
     paddingHorizontal: 12,
+    paddingVertical: 10,
     borderRadius: 8,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: "#ddd",
-    marginRight: 10,
-    backgroundColor: "#fff",
+    fontSize: 16,
+    width: "100%",
+  },
+  sliderLabel: {
+    marginTop: 10,
+    fontSize: 16,
+    color: "#333",
+  },
+  slider: {
+    width: "100%",
+    height: 40,
+    marginBottom: 20,
   },
   addButton: {
-    backgroundColor: "#4caf50",
-    paddingVertical: 10,
-    paddingHorizontal: 20,
+    backgroundColor: "#4CAF50",
+    paddingVertical: 12,
     borderRadius: 8,
-    justifyContent: "center",
     alignItems: "center",
   },
   addButtonText: {
-    color: "#fff",
+    color: "#FFF",
     fontWeight: "bold",
   },
   filters: {
     flexDirection: "row",
-    justifyContent: "space-around",
+    justifyContent: "space-between",
     marginBottom: 20,
   },
   filterButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-    backgroundColor: "#eee",
+    padding: 10,
+    backgroundColor: "#e0e0e0",
+    borderRadius: 8,
+    width: "30%",
+    alignItems: "center",
   },
   filterActive: {
-    backgroundColor: "#4caf50",
+    backgroundColor: "#4CAF50",
   },
   filterTextActive: {
-    color: "#fff",
-  },
-  taskSection: {
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 22,
-    fontWeight: "bold",
-    marginBottom: 10,
+    color: "#FFF",
   },
   taskItem: {
     backgroundColor: "#fff",
     padding: 15,
+    borderRadius: 8,
     marginBottom: 10,
-    borderRadius: 10,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 5,
+    elevation: 3, // Для Android для эффекта тени
   },
   taskText: {
-    fontSize: 18,
+    fontSize: 16,
     color: "#333",
   },
   taskCompleted: {
     textDecorationLine: "line-through",
     color: "#888",
   },
-  statusCompleted: {
-    color: "green",
-  },
-  statusInProgress: {
-    color: "orange",
-  },
-  statusCancelled: {
-    color: "red",
+  taskImage: {
+    width: 40,
+    height: 40,
+    marginTop: 5,
   },
   taskActions: {
     flexDirection: "row",
@@ -311,40 +309,46 @@ const styles = StyleSheet.create({
   },
   statusButton: {
     color: "#4CAF50",
+    fontWeight: "bold",
   },
   editButton: {
     color: "#FF9800",
+    fontWeight: "bold",
   },
   deleteButton: {
     color: "#F44336",
-  },
-  taskImage: {
-    width: 40,
-    height: 40,
-    marginLeft: 10,
-    borderRadius: 5,
+    fontWeight: "bold",
   },
   modalContainer: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    padding: 20,
+    backgroundColor: "#FFF",
   },
   modalTitle: {
-    fontSize: 24,
-    marginBottom: 20,
-    color: "#FFF",
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 10,
   },
   modalInput: {
-    width: "80%",
-    padding: 12,
-    backgroundColor: "#FFF",
-    borderRadius: 8,
-    marginBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#DDD",
+    marginBottom: 10,
+    padding: 5,
+    fontSize: 16,
   },
   modalButtons: {
     flexDirection: "row",
-    justifyContent: "space-around",
-    width: "80%",
+    justifyContent: "space-between",
+    marginTop: 20,
+  },
+  modalButton: {
+    backgroundColor: "#4CAF50",
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  modalButtonText: {
+    color: "#FFF",
+    fontWeight: "bold",
   },
 });
